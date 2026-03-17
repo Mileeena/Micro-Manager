@@ -49,17 +49,18 @@ export class OrchestratorAgent {
     const bible = await this.workspace.readBible();
     const systemPrompt = injectBible(ORCHESTRATOR_SYSTEM_PROMPT, bible);
 
-    const apiKey = await this.secrets.getApiKey('anthropic');
+    const { provider, model } = await this.workspace.getOrchestratorSettings();
+    const apiKey = await this.secrets.getApiKey(provider);
     if (!apiKey) {
-      throw new Error('No Anthropic API key configured. Please add your key in Settings.');
+      throw new Error(`No ${provider} API key configured. Please add your key in Settings.`);
     }
 
     this.conversationHistory.push({ role: 'user', content: userMessage });
 
     let fullResponse = '';
     const response = await callLLM({
-      provider: 'anthropic',
-      model: 'claude-sonnet-4-6',
+      provider,
+      model,
       systemPrompt,
       messages: this.conversationHistory,
       apiKey,

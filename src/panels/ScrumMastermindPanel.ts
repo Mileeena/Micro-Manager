@@ -278,14 +278,27 @@ export class ScrumMastermindPanel {
       case 'setNetworkPolicy':
         await this.workspace.setNetworkPolicy(msg.policy);
         break;
+
+      case 'setOrchestratorSettings':
+        await this.workspace.setOrchestratorSettings({ provider: msg.provider, model: msg.model });
+        break;
+
+      case 'updateAgentSettings': {
+        await this.workspace.updateAgentProfileSettings(msg.agentId, msg.provider, msg.model);
+        // Update in-memory state
+        this.agentManager.updateAgentSettings(msg.agentId, msg.provider, msg.model);
+        this.postMessage({ type: 'agentSettingsUpdated', agentId: msg.agentId, provider: msg.provider, model: msg.model });
+        break;
+      }
     }
   }
 
   private async sendInitState(): Promise<void> {
-    const [board, agents, networkPolicy] = await Promise.all([
+    const [board, agents, networkPolicy, orchestrator] = await Promise.all([
       this.workspace.readBoard(),
       this.agentManager.loadAgents(),
       this.workspace.getNetworkPolicy(),
+      this.workspace.getOrchestratorSettings(),
     ]);
 
     const dmMessagesObj: Record<string, ChatMessage[]> = {};
@@ -300,6 +313,7 @@ export class ScrumMastermindPanel {
       orchestratorMessages: this.orchestratorMessages,
       dmMessages: dmMessagesObj,
       networkPolicy,
+      orchestrator,
     };
     this.postMessage(msg);
 

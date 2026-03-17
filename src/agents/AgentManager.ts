@@ -1,5 +1,5 @@
 import { AgencyWorkspace } from '../services/AgencyWorkspace';
-import { AgentProfile, AgentState, AgentStatus } from '../types';
+import { AgentProfile, AgentProvider, AgentState, AgentStatus } from '../types';
 
 export class AgentManager {
   private agentStates: Map<string, AgentState> = new Map();
@@ -32,6 +32,14 @@ export class AgentManager {
     if (agent) {
       agent.status = status;
       agent.currentTaskId = currentTaskId;
+    }
+  }
+
+  updateAgentSettings(agentId: string, provider: AgentProvider, model: string): void {
+    const agent = this.agentStates.get(agentId);
+    if (agent) {
+      agent.provider = provider;
+      agent.model = model;
     }
   }
 

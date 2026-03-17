@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BoardState, AgentProfile, WhitelistEntry, WhitelistStore } from '../types';
+import { BoardState, AgentProfile, WhitelistStore, OrchestratorSettings } from '../types';
 import { FileSystemService } from './FileSystemService';
 
 const AGENCY_DIR = '.agency';
@@ -48,6 +48,7 @@ const DEFAULT_BOARD: BoardState = {
 const DEFAULT_WHITELIST: WhitelistStore = {
   commands: [],
   networkPolicy: 'open',
+  orchestrator: { provider: 'openrouter', model: 'anthropic/claude-sonnet-4-5' },
 };
 
 const DEVELOPER_AGENT_TEMPLATE = `# Developer Agent
@@ -179,7 +180,12 @@ export class AgencyWorkspace {
   async readWhitelist(): Promise<WhitelistStore> {
     try {
       const raw = await this.fs.readFile(WHITELIST_FILE);
-      return JSON.parse(raw) as WhitelistStore;
+      const store = JSON.parse(raw) as WhitelistStore;
+      // Migrate old files that don't have orchestrator field
+      if (!store.orchestrator) {
+        store.orchestrator = { ...DEFAULT_WHITELIST.orchestrator };
+      }
+      return store;
     } catch {
       return { ...DEFAULT_WHITELIST };
     }
@@ -211,6 +217,38 @@ export class AgencyWorkspace {
     const store = await this.readWhitelist();
     store.networkPolicy = policy;
     await this.writeWhitelist(store);
+  }
+
+  async getOrchestratorSettings(): Promise<OrchestratorSettings> {
+    const store = await this.readWhitelist();
+    return store.orchestrator;
+  }
+
+  async setOrchestratorSettings(settings: OrchestratorSettings): Promise<void> {
+    const store = await this.readWhitelist();
+    store.orchestrator = settings;
+    await this.writeWhitelist(store);
+  }
+
+  async updateAgentProfileSettings(id: string, provider: string, model: string): Promise<void> {
+    const filePath = `${AGENTS_DIR}/${id}.md`;
+    try {
+      let content = await this.fs.readFile(filePath);
+      // Replace or append Provider and Model lines
+      if (/\*\*Provider:\*\*/m.test(content)) {
+        content = content.replace(/\*\*Provider:\*\*.*$/m, `**Provider:** ${provider}`);
+      } else {
+        content += `\n**Provider:** ${provider}`;
+      }
+      if (/\*\*Model:\*\*/m.test(content)) {
+        content = content.replace(/\*\*Model:\*\*.*$/m, `**Model:** ${model}`);
+      } else {
+        content += `\n**Model:** ${model}`;
+      }
+      await this.fs.writeFile(filePath, content);
+    } catch {
+      // File might not exist yet — ignore
+    }
   }
 
   // ─── Logs ──────────────────────────────────────────────────────────────────

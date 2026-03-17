@@ -50,16 +50,22 @@ export interface ChatMessage {
   timestamp: string;
 }
 
-// ─── Whitelist ────────────────────────────────────────────────────────────────
+// ─── Whitelist & Settings ─────────────────────────────────────────────────────
 
 export interface WhitelistEntry {
   command: string;
   addedAt: string;
 }
 
+export interface OrchestratorSettings {
+  provider: AgentProvider;
+  model: string;
+}
+
 export interface WhitelistStore {
   commands: WhitelistEntry[];
   networkPolicy: NetworkPolicy;
+  orchestrator: OrchestratorSettings;
 }
 
 // ─── Extension ↔ Webview Message Protocol ────────────────────────────────────
@@ -72,6 +78,7 @@ export type ExtensionMessage =
       orchestratorMessages: ChatMessage[];
       dmMessages: Record<string, ChatMessage[]>;
       networkPolicy: NetworkPolicy;
+      orchestrator: OrchestratorSettings;
     }
   | { type: 'boardUpdate'; board: BoardState }
   | { type: 'agentStatusUpdate'; agentId: string; status: AgentStatus; currentTaskId?: string }
@@ -79,7 +86,8 @@ export type ExtensionMessage =
   | { type: 'streamChunk'; agentId: string; chunk: string }
   | { type: 'streamEnd'; agentId: string }
   | { type: 'error'; message: string }
-  | { type: 'apiKeyStatus'; provider: AgentProvider; hasKey: boolean };
+  | { type: 'apiKeyStatus'; provider: AgentProvider; hasKey: boolean }
+  | { type: 'agentSettingsUpdated'; agentId: string; provider: AgentProvider; model: string };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -92,7 +100,9 @@ export type WebviewMessage =
   | { type: 'saveApiKey'; provider: AgentProvider; key: string }
   | { type: 'deleteApiKey'; provider: AgentProvider }
   | { type: 'checkApiKey'; provider: AgentProvider }
-  | { type: 'setNetworkPolicy'; policy: NetworkPolicy };
+  | { type: 'setNetworkPolicy'; policy: NetworkPolicy }
+  | { type: 'setOrchestratorSettings'; provider: AgentProvider; model: string }
+  | { type: 'updateAgentSettings'; agentId: string; provider: AgentProvider; model: string };
 
 // ─── LLM ─────────────────────────────────────────────────────────────────────
 

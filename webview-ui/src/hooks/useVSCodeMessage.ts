@@ -5,18 +5,30 @@ import { useChatStore } from '../store/chatStore';
 import { vscode } from '../vscode';
 
 type ExtensionMessage =
-  | { type: 'init'; board: any; agents: any[]; orchestratorMessages: any[]; dmMessages: Record<string, any[]>; networkPolicy: 'open' | 'strict' }
+  | {
+      type: 'init';
+      board: any;
+      agents: any[];
+      orchestratorMessages: any[];
+      dmMessages: Record<string, any[]>;
+      networkPolicy: 'open' | 'strict';
+      orchestrator: { provider: any; model: string };
+    }
   | { type: 'boardUpdate'; board: any }
   | { type: 'agentStatusUpdate'; agentId: string; status: any; currentTaskId?: string }
   | { type: 'chatMessage'; message: any }
   | { type: 'streamChunk'; agentId: string; chunk: string }
   | { type: 'streamEnd'; agentId: string }
   | { type: 'error'; message: string }
-  | { type: 'apiKeyStatus'; provider: any; hasKey: boolean };
+  | { type: 'apiKeyStatus'; provider: any; hasKey: boolean }
+  | { type: 'agentSettingsUpdated'; agentId: string; provider: any; model: string };
 
 export function useVSCodeMessages(): void {
   const { setBoard } = useBoardStore();
-  const { setAgents, updateStatus, setApiKeyStatus, setNetworkPolicy } = useAgentStore();
+  const {
+    setAgents, updateStatus, setApiKeyStatus, setNetworkPolicy,
+    setOrchestratorSettingsLocal,
+  } = useAgentStore();
   const { setOrchestratorMessages, setDmMessages, addMessage, appendChunk, finalizeStream } = useChatStore();
 
   useEffect(() => {
@@ -29,6 +41,7 @@ export function useVSCodeMessages(): void {
           setOrchestratorMessages(msg.orchestratorMessages);
           setDmMessages(msg.dmMessages);
           setNetworkPolicy(msg.networkPolicy);
+          setOrchestratorSettingsLocal(msg.orchestrator);
           break;
         case 'boardUpdate':
           setBoard(msg.board);
@@ -48,6 +61,9 @@ export function useVSCodeMessages(): void {
         case 'apiKeyStatus':
           setApiKeyStatus(msg.provider, msg.hasKey);
           break;
+        case 'agentSettingsUpdated':
+          // Уже обновлено оптимистично в store
+          break;
         case 'error':
           console.error('[Scrum Mastermind]', msg.message);
           break;
@@ -55,9 +71,7 @@ export function useVSCodeMessages(): void {
     }
 
     window.addEventListener('message', handler);
-    // Signal ready to extension host
     vscode.postMessage({ type: 'ready' });
-
     return () => window.removeEventListener('message', handler);
   }, []);
 }
