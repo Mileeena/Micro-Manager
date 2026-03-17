@@ -1,0 +1,64 @@
+{
+  "name": "scrum-mastermind",
+  "displayName": "Scrum Mastermind",
+  "description": "AI-powered Kanban board with autonomous pixel agents for your VS Code workspace",
+  "version": "0.1.0",
+  "publisher": "scrum-mastermind",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other", "Machine Learning"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "scrumMastermind.open",
+        "title": "Scrum Mastermind: Open Board",
+        "icon": "$(robot)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "scrumMastermind.open",
+          "group": "navigation"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "scrumMastermind.open",
+        "key": "ctrl+shift+s",
+        "mac": "cmd+shift+s"
+      }
+    ]
+  },
+  "scripts": {
+    "build:ext": "node esbuild.config.js",
+    "build:ui": "cd webview-ui && npm run build",
+    "build": "npm run build:ui && npm run build:ext",
+    "watch:ext": "node esbuild.config.js --watch",
+    "watch:ui": "cd webview-ui && npm run dev",
+    "watch": "concurrently \"npm run watch:ext\" \"npm run watch:ui\"",
+    "package": "npm run build && vsce package",
+    "lint": "eslint src --ext ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.36.0",
+    "openai": "^4.78.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/uuid": "^10.0.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vscode/vsce": "^3.0.0",
+    "concurrently": "^9.0.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.5.0"
+  }
+}
