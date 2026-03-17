@@ -1,20 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useAgentStore, type AgentState } from '../store/agentStore';
 import { PixelAgent } from './PixelAgent';
-import { CreateAgentPanel } from './CreateAgentPanel';
 
 interface AgentSidebarProps {
   onSelectAgent: (agent: AgentState) => void;
   selectedAgentId?: string;
+  onShowCreateAgent: () => void;
 }
 
-export function AgentSidebar({ onSelectAgent, selectedAgentId }: AgentSidebarProps) {
+export function AgentSidebar({ onSelectAgent, selectedAgentId, onShowCreateAgent }: AgentSidebarProps) {
   const { agents } = useAgentStore();
-  const [showCreate, setShowCreate] = useState(false);
-
-  if (showCreate) {
-    return <CreateAgentPanel onClose={() => setShowCreate(false)} />;
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -25,7 +20,7 @@ export function AgentSidebar({ onSelectAgent, selectedAgentId }: AgentSidebarPro
       >
         <span className="text-xs font-semibold opacity-50 uppercase tracking-wider">Agents</span>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={onShowCreateAgent}
           className="text-xs px-2 py-0.5 rounded hover:opacity-90"
           style={{ backgroundColor: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)' }}
           title="Add new agent"
@@ -40,7 +35,7 @@ export function AgentSidebar({ onSelectAgent, selectedAgentId }: AgentSidebarPro
           <div className="p-3 text-xs opacity-50 text-center">
             <div className="mb-2">No agents yet</div>
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={onShowCreateAgent}
               className="underline opacity-70 hover:opacity-100"
             >
               + Create your first agent

@@ -3,18 +3,29 @@ import { vscode } from '../vscode';
 
 export type ColumnId = 'backlog' | 'todo' | 'in-progress' | 'done';
 
+export interface Epic {
+  id: string;
+  title: string;
+  description: string;
+  status: 'active' | 'done';
+  createdAt: string;
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string;
   columnId: ColumnId;
   assignedAgentId?: string;
+  epicId?: string;
+  blockedBy?: string[];
   createdAt: string;
   tags: string[];
 }
 
 export interface BoardState {
   columns: Record<ColumnId, Task[]>;
+  epics: Epic[];
   updatedAt: string;
 }
 
@@ -24,10 +35,12 @@ interface BoardStore {
   moveTask: (taskId: string, fromColumn: ColumnId, toColumn: ColumnId) => void;
   assignTask: (taskId: string, agentId: string) => void;
   createTask: (title: string, description: string, columnId?: ColumnId) => void;
+  setTaskBlockers: (taskId: string, blockedBy: string[]) => void;
 }
 
 const emptyBoard: BoardState = {
   columns: { backlog: [], todo: [], 'in-progress': [], done: [] },
+  epics: [],
   updatedAt: new Date().toISOString(),
 };
 
@@ -72,6 +85,20 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
 
   createTask: (title, description, columnId = 'backlog') => {
     vscode.postMessage({ type: 'createTask', title, description, columnId });
+  },
+
+  setTaskBlockers: (taskId, blockedBy) => {
+    const { board } = get();
+    const newColumns = { ...board.columns };
+    for (const col of Object.keys(newColumns) as ColumnId[]) {
+      const task = newColumns[col].find(t => t.id === taskId);
+      if (task) {
+        task.blockedBy = blockedBy.length > 0 ? blockedBy : undefined;
+        break;
+      }
+    }
+    set({ board: { ...board, columns: newColumns } });
+    vscode.postMessage({ type: 'setTaskBlockers', taskId, blockedBy });
   },
 }));
 

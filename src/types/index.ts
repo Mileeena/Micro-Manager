@@ -2,18 +2,32 @@
 
 export type ColumnId = 'backlog' | 'todo' | 'in-progress' | 'done';
 
+/** A user story / big feature that groups related tasks */
+export interface Epic {
+  id: string;
+  title: string;
+  description: string;
+  status: 'active' | 'done';
+  createdAt: string;
+}
+
 export interface Task {
   id: string;
   title: string;
   description: string;
   columnId: ColumnId;
   assignedAgentId?: string;
+  /** Reference to parent epic */
+  epicId?: string;
+  /** IDs of tasks that block this one */
+  blockedBy?: string[];
   createdAt: string;
   tags: string[];
 }
 
 export interface BoardState {
   columns: Record<ColumnId, Task[]>;
+  epics: Epic[];
   updatedAt: string;
 }
 
@@ -32,6 +46,8 @@ export interface AgentProfile {
   avatarSeed: string;
   provider: AgentProvider;
   model: string;
+  /** Commands this agent is always allowed to run without prompting */
+  allowedCommands: string[];
 }
 
 export interface AgentState extends AgentProfile {
@@ -96,6 +112,7 @@ export type WebviewMessage =
   | { type: 'dmMessage'; agentId: string; content: string }
   | { type: 'createTask'; title: string; description: string; columnId?: ColumnId }
   | { type: 'assignTask'; taskId: string; agentId: string }
+  | { type: 'setTaskBlockers'; taskId: string; blockedBy: string[] }
   | { type: 'runAgentOnTask'; taskId: string; agentId: string }
   | { type: 'saveApiKey'; provider: AgentProvider; key: string }
   | { type: 'deleteApiKey'; provider: AgentProvider }
@@ -103,6 +120,7 @@ export type WebviewMessage =
   | { type: 'setNetworkPolicy'; policy: NetworkPolicy }
   | { type: 'setOrchestratorSettings'; provider: AgentProvider; model: string }
   | { type: 'updateAgentSettings'; agentId: string; provider: AgentProvider; model: string }
+  | { type: 'updateAgentAllowedCommands'; agentId: string; allowedCommands: string[] }
   | { type: 'createAgent'; name: string; role: string; mission: string; provider: AgentProvider; model: string };
 
 // ─── LLM ─────────────────────────────────────────────────────────────────────

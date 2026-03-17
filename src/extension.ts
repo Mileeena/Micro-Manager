@@ -8,7 +8,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
     vscode.window.showWarningMessage(
-      'Scrum Mastermind requires an open workspace folder. Please open a folder first.'
+      'Micro Manager requires an open workspace folder. Please open a folder first.'
     );
     return;
   }
@@ -22,28 +22,28 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   try {
     await agencyWorkspace.initialize();
   } catch (err) {
-    vscode.window.showErrorMessage(`Scrum Mastermind: Failed to initialize workspace: ${String(err)}`);
+    vscode.window.showErrorMessage(`Micro Manager: Failed to initialize workspace: ${String(err)}`);
     return;
   }
 
   // Register the open command
-  const openCommand = vscode.commands.registerCommand('scrumMastermind.open', () => {
+  const openCommand = vscode.commands.registerCommand('microManager.open', () => {
     ScrumMastermindPanel.createOrShow(context, agencyWorkspace, secretService, fsService);
   });
 
   context.subscriptions.push(openCommand);
 
   // Show welcome notification on first activation
-  const hasShownWelcome = context.globalState.get<boolean>('scrum-mastermind.welcomed');
+  const hasShownWelcome = context.globalState.get<boolean>('micro-manager.welcomed');
   if (!hasShownWelcome) {
     const choice = await vscode.window.showInformationMessage(
-      '🤖 Scrum Mastermind is ready! Open the board to get started.',
+      '🤖 Micro Manager is ready! Open the board to get started.',
       'Open Board'
     );
     if (choice === 'Open Board') {
       ScrumMastermindPanel.createOrShow(context, agencyWorkspace, secretService, fsService);
     }
-    await context.globalState.update('scrum-mastermind.welcomed', true);
+    await context.globalState.update('micro-manager.welcomed', true);
   }
 }
 

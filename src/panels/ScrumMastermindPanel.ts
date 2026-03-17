@@ -12,12 +12,14 @@ import {
   ExtensionMessage,
   WebviewMessage,
   AgentProvider,
+  AgentState,
   ChatMessage,
+  Task,
 } from '../types';
 
 export class ScrumMastermindPanel {
   public static currentPanel: ScrumMastermindPanel | undefined;
-  private static readonly viewType = 'scrumMastermind';
+  private static readonly viewType = 'microManager';
 
   private readonly panel: vscode.WebviewPanel;
   private readonly orchestrator: OrchestratorAgent;
@@ -29,6 +31,9 @@ export class ScrumMastermindPanel {
   // In-memory chat history
   private orchestratorMessages: ChatMessage[] = [];
   private dmMessages: Map<string, ChatMessage[]> = new Map();
+
+  // Supervisor: how many times each task has been kicked by the Scrum Master
+  private taskRetryCount: Map<string, number> = new Map();
 
   private constructor(
     private readonly extensionUri: vscode.Uri,
@@ -43,7 +48,7 @@ export class ScrumMastermindPanel {
 
     this.panel = vscode.window.createWebviewPanel(
       ScrumMastermindPanel.viewType,
-      'Scrum Mastermind',
+      'Micro Manager',
       vscode.ViewColumn.One,
       {
         enableScripts: true,
@@ -100,8 +105,10 @@ export class ScrumMastermindPanel {
         this.postMessage({ type: 'chatMessage', message: userMsg });
 
         try {
+          const agents = this.agentManager.getAllAgents();
           const { responseText, newTasks } = await this.orchestrator.handleMessage(
             msg.content,
+            agents,
             (chunk) => this.postMessage({ type: 'streamChunk', agentId: 'orchestrator', chunk })
           );
           this.postMessage({ type: 'streamEnd', agentId: 'orchestrator' });
@@ -126,6 +133,7 @@ export class ScrumMastermindPanel {
         const agent = this.agentManager.getAgent(msg.agentId);
         if (!agent) break;
 
+        // Store user message server-side only — the webview already added it optimistically
         const userMsg: ChatMessage = {
           id: uuidv4(),
           agentId: msg.agentId,
@@ -134,7 +142,7 @@ export class ScrumMastermindPanel {
           timestamp: new Date().toISOString(),
         };
         this.dmMessages.get(msg.agentId)!.push(userMsg);
-        this.postMessage({ type: 'chatMessage', message: userMsg });
+        // No echo back — would cause duplication since store adds message before sending
 
         // Run a single-turn DM response (not the full task loop)
         try {
@@ -193,6 +201,19 @@ export class ScrumMastermindPanel {
           board.columns[msg.toColumn].push(task);
           await this.workspace.writeBoard(board);
           this.postMessage({ type: 'boardUpdate', board });
+
+          // Auto-start: if moved to 'todo' or 'in-progress' and has an assigned agent
+          if (
+            (msg.toColumn === 'todo' || msg.toColumn === 'in-progress') &&
+            task.assignedAgentId
+          ) {
+            const agent = this.agentManager.getAgent(task.assignedAgentId);
+            if (agent && agent.status === 'idle') {
+              this.agentRunner.runTask(agent, task, this.buildRunCallbacks()).catch(err => {
+                this.postMessage({ type: 'error', message: `Agent error: ${String(err)}` });
+              });
+            }
+          }
         }
         break;
       }
@@ -234,25 +255,7 @@ export class ScrumMastermindPanel {
         }
         if (!agent || !task) break;
 
-        this.agentRunner.runTask(agent, task, {
-          onStatusChange: (agentId, status, taskId) => {
-            this.agentManager.setStatus(agentId, status, taskId);
-            this.postMessage({ type: 'agentStatusUpdate', agentId, status, currentTaskId: taskId });
-          },
-          onChunk: (agentId, chunk) => {
-            this.postMessage({ type: 'streamChunk', agentId, chunk });
-          },
-          onMessageComplete: (message) => {
-            if (!this.dmMessages.has(message.agentId)) {
-              this.dmMessages.set(message.agentId, []);
-            }
-            this.dmMessages.get(message.agentId)!.push(message);
-          },
-          onBoardUpdate: async () => {
-            const updated = await this.workspace.readBoard();
-            this.postMessage({ type: 'boardUpdate', board: updated });
-          },
-        }).catch(err => {
+        this.agentRunner.runTask(agent, task, this.buildRunCallbacks()).catch(err => {
           this.postMessage({ type: 'error', message: `Agent error: ${String(err)}` });
         });
         break;
@@ -290,6 +293,44 @@ export class ScrumMastermindPanel {
         break;
       }
 
+      case 'updateAgentAllowedCommands': {
+        // Persist to .md profile + update in-memory
+        const agentFile = this.agentManager.getAgent(msg.agentId);
+        if (agentFile) {
+          // Write the full new list to the .md profile
+          const filePath = `.agency/agents/${msg.agentId}.md`;
+          const content = await this.fsService.readFile(filePath).catch(() => '');
+          if (content) {
+            let updated = content;
+            if (/\*\*Allowed Commands:\*\*/m.test(updated)) {
+              updated = updated.replace(
+                /\*\*Allowed Commands:\*\*.*$/m,
+                `**Allowed Commands:** ${msg.allowedCommands.join(', ')}`
+              );
+            } else {
+              updated += `\n**Allowed Commands:** ${msg.allowedCommands.join(', ')}`;
+            }
+            await this.fsService.writeFile(filePath, updated);
+          }
+          this.agentManager.updateAgentAllowedCommands(msg.agentId, msg.allowedCommands);
+        }
+        break;
+      }
+
+      case 'setTaskBlockers': {
+        const board = await this.workspace.readBoard();
+        for (const col of Object.values(board.columns)) {
+          const task = col.find(t => t.id === msg.taskId);
+          if (task) {
+            task.blockedBy = msg.blockedBy.length > 0 ? msg.blockedBy : undefined;
+            break;
+          }
+        }
+        await this.workspace.writeBoard(board);
+        this.postMessage({ type: 'boardUpdate', board });
+        break;
+      }
+
       case 'createAgent': {
         const content = [
           `# ${msg.name}`,
@@ -300,13 +341,95 @@ export class ScrumMastermindPanel {
           `**Provider:** ${msg.provider}`,
           `**Model:** ${msg.model}`,
         ].join('\n');
-        const id = msg.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        const id = `${msg.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}-${Date.now()}`;
         await this.workspace.writeAgentProfile(id, content);
         const agents = await this.agentManager.loadAgents();
         this.postMessage({ type: 'init', board: await this.workspace.readBoard(), agents, orchestratorMessages: this.orchestratorMessages, dmMessages: {}, networkPolicy: await this.workspace.getNetworkPolicy(), orchestrator: await this.workspace.getOrchestratorSettings() });
         vscode.window.showInformationMessage(`Agent "${msg.name}" created!`);
         break;
       }
+    }
+  }
+
+  /** Shared AgentRunner callbacks — used by both runAgentOnTask and auto-start */
+  private buildRunCallbacks() {
+    return {
+      onStatusChange: (agentId: string, status: 'thinking' | 'coding' | 'waiting' | 'idle' | 'error', taskId?: string) => {
+        this.agentManager.setStatus(agentId, status, taskId);
+        this.postMessage({ type: 'agentStatusUpdate', agentId, status, currentTaskId: taskId });
+      },
+      onChunk: (agentId: string, chunk: string) => {
+        this.postMessage({ type: 'streamChunk', agentId, chunk });
+      },
+      onMessageComplete: (message: ChatMessage) => {
+        if (!this.dmMessages.has(message.agentId)) {
+          this.dmMessages.set(message.agentId, []);
+        }
+        this.dmMessages.get(message.agentId)!.push(message);
+        // Signal the webview that this streaming turn is done so the input is re-enabled
+        this.postMessage({ type: 'streamEnd', agentId: message.agentId });
+      },
+      onBoardUpdate: async () => {
+        const updated = await this.workspace.readBoard();
+        this.postMessage({ type: 'boardUpdate', board: updated });
+      },
+      onTaskIncomplete: async (agentId: string, task: Task, lastResponse: string) => {
+        await this.supervisorKick(agentId, task, lastResponse);
+      },
+    };
+  }
+
+  /** Scrum Master supervisor: called when an agent loop ends without completing the task */
+  private async supervisorKick(agentId: string, task: Task, lastResponse: string): Promise<void> {
+    const MAX_KICKS = 2;
+    const retries = this.taskRetryCount.get(task.id) ?? 0;
+
+    const postSystemMsg = (content: string) => {
+      const msg: ChatMessage = {
+        id: uuidv4(),
+        agentId,
+        role: 'system',
+        content,
+        timestamp: new Date().toISOString(),
+      };
+      if (!this.dmMessages.has(agentId)) this.dmMessages.set(agentId, []);
+      this.dmMessages.get(agentId)!.push(msg);
+      this.postMessage({ type: 'chatMessage', message: msg });
+    };
+
+    if (retries >= MAX_KICKS) {
+      postSystemMsg(
+        `🧠 Scrum Master: I've given "${task.title}" ${MAX_KICKS} extra pushes with no completion. ` +
+        `Consider breaking it into smaller tasks, clarifying the requirements, or assigning a different agent.`
+      );
+      this.taskRetryCount.delete(task.id);
+      return;
+    }
+
+    this.taskRetryCount.set(task.id, retries + 1);
+
+    const agent = this.agentManager.getAgent(agentId);
+    if (!agent) return;
+
+    try {
+      postSystemMsg(`🧠 Scrum Master: Task not complete — analyzing and sending follow-up instructions... (attempt ${retries + 1}/${MAX_KICKS})`);
+
+      const kickText = await this.orchestrator.generateKickMessage(agent, task, lastResponse);
+
+      // Update the system message with the actual kick content
+      postSystemMsg(`🧠 Scrum Master kick ${retries + 1}/${MAX_KICKS}: ${kickText}`);
+
+      // Re-run the agent with the Scrum Master's guidance injected into the task description
+      const kickedTask: Task = {
+        ...task,
+        description: `${task.description}\n\n**Scrum Master Instructions:** ${kickText}`,
+      };
+
+      this.agentRunner.runTask(agent, kickedTask, this.buildRunCallbacks()).catch(err => {
+        this.postMessage({ type: 'error', message: `Agent error (after kick): ${String(err)}` });
+      });
+    } catch (err) {
+      postSystemMsg(`🧠 Scrum Master: Failed to generate kick instructions — ${String(err)}`);
     }
   }
 

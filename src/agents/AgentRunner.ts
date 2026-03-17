@@ -40,6 +40,8 @@ export type AgentRunnerCallbacks = {
   onChunk: (agentId: string, chunk: string) => void;
   onMessageComplete: (message: ChatMessage) => void;
   onBoardUpdate: () => void;
+  /** Fired when the agentic loop ends without the task being moved to 'done' */
+  onTaskIncomplete?: (agentId: string, task: Task, lastResponse: string) => void;
 };
 
 export class AgentRunner {
@@ -71,6 +73,8 @@ export class AgentRunner {
       // Agentic loop: keep running until task is moved to done or max iterations
       let iterations = 0;
       const MAX_ITERATIONS = 10;
+      let taskCompleted = false;
+      let lastAgentResponse = '';
 
       while (iterations < MAX_ITERATIONS) {
         iterations++;
@@ -89,6 +93,8 @@ export class AgentRunner {
           },
         });
 
+        lastAgentResponse = responseText;
+
         onMessageComplete({
           id: uuidv4(),
           agentId: agent.id,
@@ -101,19 +107,20 @@ export class AgentRunner {
 
         // Parse and execute actions
         const actions = this.parseActions(responseText);
-        if (actions.length === 0) break; // No more actions — agent is done
+        if (actions.length === 0) break; // No more actions — agent stopped responding with tool calls
 
         const toolResults: string[] = [];
         let taskDone = false;
 
         for (const action of actions) {
           onStatusChange(agent.id, 'coding', task.id);
-          const result = await this.executeAction(action, agent.id);
+          const result = await this.executeAction(action, agent);
           toolResults.push(result);
 
           // Check if task was moved to done
           if (action.type === 'MOVE_TASK' && action.toColumn === 'done') {
             taskDone = true;
+            taskCompleted = true;
             onBoardUpdate();
           }
           if (action.type === 'CREATE_TASK' || action.type === 'MOVE_TASK') {
@@ -130,6 +137,11 @@ export class AgentRunner {
             content: `Tool results:\n${toolResults.join('\n\n')}`,
           });
         }
+      }
+
+      // If the loop ended without completing the task, notify the supervisor
+      if (!taskCompleted && callbacks.onTaskIncomplete) {
+        callbacks.onTaskIncomplete(agent.id, task, lastAgentResponse);
       }
 
       onStatusChange(agent.id, 'idle');
@@ -172,7 +184,8 @@ export class AgentRunner {
     return actions;
   }
 
-  private async executeAction(action: AgentAction, agentId: string): Promise<string> {
+  private async executeAction(action: AgentAction, agent: AgentState): Promise<string> {
+    const agentId = agent.id;
     switch (action.type) {
       case 'READ_FILE': {
         try {
@@ -193,7 +206,18 @@ export class AgentRunner {
         }
       }
       case 'RUN_COMMAND': {
-        const result = await this.terminalService.executeCommand(action.cmd);
+        const result = await this.terminalService.executeCommand(action.cmd, {
+          id: agent.id,
+          name: agent.name,
+          allowedCommands: [...agent.allowedCommands],
+          onAllowForAgent: async (cmd) => {
+            await this.workspace.addToAgentCommandWhitelist(agent.id, cmd);
+            // Also update in-memory list for this run
+            if (!agent.allowedCommands.includes(cmd)) {
+              agent.allowedCommands.push(cmd);
+            }
+          },
+        });
         await this.workspace.writeLog({ agentId, action: 'RUN_COMMAND', details: { cmd: action.cmd, result } });
         return `<command_result status="${result}">${action.cmd}</command_result>`;
       }

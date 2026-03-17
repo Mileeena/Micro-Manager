@@ -43,6 +43,13 @@ export class AgentManager {
     }
   }
 
+  updateAgentAllowedCommands(agentId: string, allowedCommands: string[]): void {
+    const agent = this.agentStates.get(agentId);
+    if (agent) {
+      agent.allowedCommands = allowedCommands;
+    }
+  }
+
   async createAgentProfile(name: string, role: string, mission: string): Promise<AgentProfile> {
     const id = name.toLowerCase().replace(/\s+/g, '-');
     const content = `# ${name}\n\n**Role:** ${role}\n**Mission:** ${mission}\n**Metrics:** Task completion rate\n**Provider:** anthropic\n**Model:** claude-sonnet-4-6\n`;
@@ -58,6 +65,7 @@ export class AgentManager {
       avatarSeed: id,
       provider: 'anthropic',
       model: 'claude-sonnet-4-6',
+      allowedCommands: [],
     };
 
     this.agentStates.set(id, { ...profile, status: 'idle' });

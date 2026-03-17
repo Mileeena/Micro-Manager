@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BoardState, AgentProfile, WhitelistStore, OrchestratorSettings } from '../types';
+import { BoardState, Epic, AgentProfile, WhitelistStore, OrchestratorSettings } from '../types';
 import { FileSystemService } from './FileSystemService';
 
 const AGENCY_DIR = '.agency';
@@ -42,6 +42,7 @@ const DEFAULT_BOARD: BoardState = {
     'in-progress': [],
     done: [],
   },
+  epics: [],
   updatedAt: new Date().toISOString(),
 };
 
@@ -102,10 +103,19 @@ export class AgencyWorkspace {
   async readBoard(): Promise<BoardState> {
     try {
       const raw = await this.fs.readFile(BOARD_FILE);
-      return JSON.parse(raw) as BoardState;
+      const board = JSON.parse(raw) as BoardState;
+      // Migration: add epics array if missing from old board files
+      if (!board.epics) board.epics = [];
+      return board;
     } catch {
       return { ...DEFAULT_BOARD, updatedAt: new Date().toISOString() };
     }
+  }
+
+  async addEpic(epic: Epic): Promise<void> {
+    const board = await this.readBoard();
+    board.epics.push(epic);
+    await this.writeBoard(board);
   }
 
   async writeBoard(board: BoardState): Promise<void> {
@@ -152,9 +162,15 @@ export class AgencyWorkspace {
       const metricsMatch = content.match(/\*\*Metrics:\*\*\s+(.+)$/m);
       const providerMatch = content.match(/\*\*Provider:\*\*\s+(.+)$/m);
       const modelMatch = content.match(/\*\*Model:\*\*\s+(.+)$/m);
+      const allowedMatch = content.match(/\*\*Allowed Commands:\*\*\s+(.+)$/m);
 
       const id = filename.replace('.md', '');
       const name = nameMatch?.[1]?.trim() ?? id;
+
+      // Parse comma-separated allowed commands
+      const allowedCommands = allowedMatch?.[1]
+        ? allowedMatch[1].split(',').map(s => s.trim()).filter(Boolean)
+        : [];
 
       return {
         id,
@@ -165,9 +181,34 @@ export class AgencyWorkspace {
         avatarSeed: id,
         provider: (providerMatch?.[1]?.trim() as 'anthropic' | 'openai' | 'openrouter') ?? 'anthropic',
         model: modelMatch?.[1]?.trim() ?? 'claude-sonnet-4-6',
+        allowedCommands,
       };
     } catch {
       return null;
+    }
+  }
+
+  /** Add a command to this agent's personal allowed commands list in its .md profile */
+  async addToAgentCommandWhitelist(agentId: string, command: string): Promise<void> {
+    const filePath = `${AGENTS_DIR}/${agentId}.md`;
+    try {
+      let content = await this.fs.readFile(filePath);
+      const match = content.match(/\*\*Allowed Commands:\*\*\s+(.+)$/m);
+      if (match) {
+        const existing = match[1].split(',').map(s => s.trim()).filter(Boolean);
+        if (!existing.includes(command)) {
+          existing.push(command);
+          content = content.replace(
+            /\*\*Allowed Commands:\*\*.*$/m,
+            `**Allowed Commands:** ${existing.join(', ')}`
+          );
+        }
+      } else {
+        content += `\n**Allowed Commands:** ${command}`;
+      }
+      await this.fs.writeFile(filePath, content);
+    } catch {
+      // File might not exist yet — ignore
     }
   }
 

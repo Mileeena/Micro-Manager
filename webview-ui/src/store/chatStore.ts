@@ -57,7 +57,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   finalizeStream: (agentId) => {
     const { streamingContent } = get();
     const content = streamingContent[agentId];
-    if (!content) return;
+
+    // Always remove the streaming key so isStreaming becomes false,
+    // even if the content is empty (agent may have sent nothing).
+    const clearKey = (state: { streamingContent: Record<string, string> }) => {
+      const updated = { ...state.streamingContent };
+      delete updated[agentId];
+      return { streamingContent: updated };
+    };
+
+    if (!content) {
+      set((state) => clearKey(state));
+      return;
+    }
 
     const message: ChatMessage = {
       id: `stream-${Date.now()}`,
@@ -70,7 +82,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     if (agentId === 'orchestrator') {
       set((state) => ({
         orchestratorMessages: [...state.orchestratorMessages, message],
-        streamingContent: { ...state.streamingContent, [agentId]: '' },
+        ...clearKey(state),
       }));
     } else {
       set((state) => ({
@@ -78,7 +90,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           ...state.dmMessages,
           [agentId]: [...(state.dmMessages[agentId] ?? []), message],
         },
-        streamingContent: { ...state.streamingContent, [agentId]: '' },
+        ...clearKey(state),
       }));
     }
   },

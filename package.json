@@ -1,9 +1,9 @@
 {
-  "name": "scrum-mastermind",
-  "displayName": "Scrum Mastermind",
+  "name": "micro-manager",
+  "displayName": "Micro Manager",
   "description": "AI-powered Kanban board with autonomous pixel agents for your VS Code workspace",
   "version": "0.1.0",
-  "publisher": "scrum-mastermind",
+  "publisher": "micro-manager",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -13,22 +13,22 @@
   "contributes": {
     "commands": [
       {
-        "command": "scrumMastermind.open",
-        "title": "Scrum Mastermind: Open Board",
+        "command": "microManager.open",
+        "title": "Micro Manager: Open Board",
         "icon": "$(robot)"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "scrumMastermind.open",
+          "command": "microManager.open",
           "group": "navigation"
         }
       ]
     },
     "keybindings": [
       {
-        "command": "scrumMastermind.open",
+        "command": "microManager.open",
         "key": "ctrl+shift+s",
         "mac": "cmd+shift+s"
       }

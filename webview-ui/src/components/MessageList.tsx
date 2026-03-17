@@ -12,6 +12,25 @@ function formatTime(iso: string): string {
 }
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
+  // System messages from the Scrum Master supervisor — rendered as a distinct banner
+  if (msg.role === 'system') {
+    return (
+      <div className="flex justify-center mb-3 px-2">
+        <div
+          className="w-full rounded-md px-3 py-2 text-xs border-l-2"
+          style={{
+            backgroundColor: 'rgba(251,191,36,0.08)',
+            borderLeftColor: '#fbbf24',
+            color: 'var(--vscode-editor-foreground)',
+          }}
+        >
+          <div className="whitespace-pre-wrap break-words opacity-80">{msg.content}</div>
+          <div className="text-xs opacity-30 mt-1">{formatTime(msg.timestamp)}</div>
+        </div>
+      </div>
+    );
+  }
+
   const isUser = msg.role === 'user';
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}>

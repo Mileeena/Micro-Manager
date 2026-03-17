@@ -6,35 +6,61 @@ const PACKAGE_INSTALL_PATTERN = /^(npm\s+install|npm\s+i\s|yarn\s+add|pnpm\s+add
 
 export type CommandResult = 'allowed' | 'denied' | 'blocked-network';
 
+export interface AgentCommandContext {
+  id: string;
+  name: string;
+  allowedCommands: string[];
+  onAllowForAgent: (cmd: string) => Promise<void>;
+}
+
 export class TerminalService {
   private terminal: vscode.Terminal | null = null;
 
   constructor(private readonly workspace: AgencyWorkspace) {}
 
-  async executeCommand(command: string): Promise<CommandResult> {
+  async executeCommand(command: string, agent?: AgentCommandContext): Promise<CommandResult> {
     // Network policy check
     const policy = await this.workspace.getNetworkPolicy();
     if (policy === 'strict' && PACKAGE_INSTALL_PATTERN.test(command.trim())) {
       vscode.window.showWarningMessage(
-        `[Scrum Mastermind] Blocked \`${command}\` — network policy is set to Strict.`
+        `[Micro Manager] Blocked \`${command}\` — network policy is set to Strict.`
       );
       return 'blocked-network';
     }
 
-    // Whitelist check
+    // Check agent's personal allowed commands first
+    if (agent) {
+      const agentAllows = agent.allowedCommands.some(
+        allowed => command.trim() === allowed.trim() || command.trim().startsWith(allowed.trim())
+      );
+      if (agentAllows) {
+        await this.runInTerminal(command);
+        return 'allowed';
+      }
+    }
+
+    // Check global whitelist
     const isWhitelisted = await this.workspace.isWhitelisted(command);
     if (isWhitelisted) {
       await this.runInTerminal(command);
       return 'allowed';
     }
 
-    // Ask user
-    const choice = await vscode.window.showInformationMessage(
-      `🤖 Agent wants to run: \`${command}\``,
-      { modal: false },
+    // Ask user with per-agent option
+    const agentLabel = agent ? ` (from ${agent.name})` : '';
+    const allowForAgentLabel = agent ? `Allow for ${agent.name}` : undefined;
+
+    const choices = [
       'Allow Once',
+      ...(allowForAgentLabel ? [allowForAgentLabel] : []),
       'Allow Always',
-      'Deny'
+      'Deny',
+    ];
+
+    const choice = await vscode.window.showInformationMessage(
+      `🤖 Agent${agentLabel} wants to run: \`${command}\``,
+      { modal: false },
+      ...choices
     );
 
     if (!choice || choice === 'Deny') {
@@ -43,6 +69,10 @@ export class TerminalService {
 
     if (choice === 'Allow Always') {
       await this.workspace.addToWhitelist(command);
+    } else if (choice === allowForAgentLabel && agent) {
+      await agent.onAllowForAgent(command);
+      // Update in-memory agent allowedCommands
+      agent.allowedCommands.push(command);
     }
 
     await this.runInTerminal(command);

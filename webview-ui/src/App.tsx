@@ -3,6 +3,7 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { OrchestratorChat } from './components/OrchestratorChat';
 import { DirectMessage } from './components/DirectMessage';
 import { AgentSidebar } from './components/AgentSidebar';
+import { CreateAgentPanel } from './components/CreateAgentPanel';
 import { Settings } from './components/Settings';
 import { useVSCodeMessages } from './hooks/useVSCodeMessage';
 import type { AgentState } from './store/agentStore';
@@ -14,10 +15,11 @@ export function App() {
 
   const [activeTab, setActiveTab] = useState<Tab>('board');
   const [selectedAgent, setSelectedAgent] = useState<AgentState | null>(null);
+  const [showCreateAgent, setShowCreateAgent] = useState(false);
 
   const TABS: { id: Tab; label: string; icon: string }[] = [
     { id: 'board', label: 'Board', icon: '▦' },
-    { id: 'chat', label: 'Scrum Master', icon: '🧠' },
+    { id: 'chat', label: 'Manager', icon: '🧠' },
     { id: 'dms', label: 'Agents', icon: '🤖' },
     { id: 'settings', label: 'Settings', icon: '⚙' },
   ];
@@ -36,6 +38,26 @@ export function App() {
         fontFamily: 'var(--vscode-font-family)',
       }}
     >
+      {/* Create Agent Modal */}
+      {showCreateAgent && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          onClick={() => setShowCreateAgent(false)}
+        >
+          <div
+            className="w-[480px] rounded-lg overflow-hidden shadow-2xl border flex flex-col"
+            style={{
+              height: 'min(85vh, 640px)',
+              backgroundColor: 'var(--vscode-editor-background)',
+              borderColor: 'var(--vscode-focusBorder)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <CreateAgentPanel onClose={() => setShowCreateAgent(false)} />
+          </div>
+        </div>
+      )}
       {/* Top nav */}
       <nav
         className="flex items-center border-b flex-shrink-0"
@@ -69,7 +91,7 @@ export function App() {
               className="w-48 flex-shrink-0 border-r overflow-y-auto"
               style={{ borderColor: 'var(--vscode-panel-border)', backgroundColor: 'var(--vscode-sideBar-background)' }}
             >
-              <AgentSidebar onSelectAgent={handleSelectAgent} selectedAgentId={selectedAgent?.id} />
+              <AgentSidebar onSelectAgent={handleSelectAgent} selectedAgentId={selectedAgent?.id} onShowCreateAgent={() => setShowCreateAgent(true)} />
             </div>
             {/* DM panel */}
             <div className="flex-1 overflow-hidden">
