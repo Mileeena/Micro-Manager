@@ -102,7 +102,8 @@ export type WebviewMessage =
   | { type: 'checkApiKey'; provider: AgentProvider }
   | { type: 'setNetworkPolicy'; policy: NetworkPolicy }
   | { type: 'setOrchestratorSettings'; provider: AgentProvider; model: string }
-  | { type: 'updateAgentSettings'; agentId: string; provider: AgentProvider; model: string };
+  | { type: 'updateAgentSettings'; agentId: string; provider: AgentProvider; model: string }
+  | { type: 'createAgent'; name: string; role: string; mission: string; provider: AgentProvider; model: string };
 
 // ─── LLM ─────────────────────────────────────────────────────────────────────
 

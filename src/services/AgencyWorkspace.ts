@@ -56,8 +56,8 @@ const DEVELOPER_AGENT_TEMPLATE = `# Developer Agent
 **Role:** Full-Stack Developer
 **Mission:** Implement features and fix bugs based on Kanban tasks. Write clean, tested code following the project's coding standards.
 **Metrics:** Task completion rate, code quality, test coverage
-**Provider:** anthropic
-**Model:** claude-sonnet-4-6
+**Provider:** openrouter
+**Model:** anthropic/claude-sonnet-4-5
 `;
 
 export class AgencyWorkspace {

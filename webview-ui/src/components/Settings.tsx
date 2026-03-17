@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAgentStore, type AgentProvider } from '../store/agentStore';
+import { ModelPicker } from './ModelPicker';
 
 const PROVIDERS: { id: AgentProvider; label: string; description: string }[] = [
   { id: 'anthropic', label: 'Anthropic (Claude)', description: 'Direct Anthropic API — claude-* models' },
@@ -13,20 +14,6 @@ const PROVIDER_LABELS: Record<AgentProvider, string> = {
   openrouter: 'OpenRouter',
 };
 
-// Подсказки моделей для каждого провайдера
-const MODEL_SUGGESTIONS: Record<AgentProvider, string[]> = {
-  anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5'],
-  openai: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
-  openrouter: [
-    'anthropic/claude-sonnet-4-5',
-    'anthropic/claude-opus-4-5',
-    'openai/gpt-4o',
-    'google/gemini-2.0-flash-001',
-    'meta-llama/llama-3.3-70b-instruct',
-    'deepseek/deepseek-chat-v3-0324',
-  ],
-};
-
 export function Settings() {
   const {
     apiKeyStatus, networkPolicy, orchestrator,
@@ -38,6 +25,12 @@ export function Settings() {
   });
   const [orchProvider, setOrchProvider] = useState<AgentProvider>(orchestrator.provider);
   const [orchModel, setOrchModel] = useState(orchestrator.model);
+
+  // Sync if store changes (e.g. on init)
+  React.useEffect(() => {
+    setOrchProvider(orchestrator.provider);
+    setOrchModel(orchestrator.model);
+  }, [orchestrator.provider, orchestrator.model]);
 
   function handleSaveKey(provider: AgentProvider) {
     const key = keyInputs[provider].trim();
@@ -70,9 +63,7 @@ export function Settings() {
             <select
               value={orchProvider}
               onChange={e => {
-                const p = e.target.value as AgentProvider;
-                setOrchProvider(p);
-                setOrchModel(MODEL_SUGGESTIONS[p][0]);
+                setOrchProvider(e.target.value as AgentProvider);
               }}
               className="flex-1 text-sm px-2 py-1 rounded border bg-transparent"
               style={{ borderColor: 'var(--vscode-panel-border)', color: 'var(--vscode-editor-foreground)', backgroundColor: 'var(--vscode-editor-background)' }}
@@ -88,19 +79,9 @@ export function Settings() {
 
           <div className="flex gap-2 items-center">
             <label className="text-xs opacity-60 w-20 flex-shrink-0">Model</label>
-            <input
-              type="text"
-              value={orchModel}
-              onChange={e => setOrchModel(e.target.value)}
-              list="orch-model-suggestions"
-              className="flex-1 text-sm px-2 py-1 rounded border bg-transparent"
-              style={{ borderColor: 'var(--vscode-panel-border)', color: 'var(--vscode-editor-foreground)', backgroundColor: 'var(--vscode-editor-background)' }}
-              placeholder="Название модели..."
-              onKeyDown={e => { if (e.key === 'Enter') handleSaveOrchestrator(); }}
-            />
-            <datalist id="orch-model-suggestions">
-              {MODEL_SUGGESTIONS[orchProvider].map(m => <option key={m} value={m} />)}
-            </datalist>
+            <div className="flex-1">
+              <ModelPicker provider={orchProvider} model={orchModel} onModelChange={setOrchModel} />
+            </div>
           </div>
 
           <button

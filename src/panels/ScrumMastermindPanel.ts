@@ -285,9 +285,26 @@ export class ScrumMastermindPanel {
 
       case 'updateAgentSettings': {
         await this.workspace.updateAgentProfileSettings(msg.agentId, msg.provider, msg.model);
-        // Update in-memory state
         this.agentManager.updateAgentSettings(msg.agentId, msg.provider, msg.model);
         this.postMessage({ type: 'agentSettingsUpdated', agentId: msg.agentId, provider: msg.provider, model: msg.model });
+        break;
+      }
+
+      case 'createAgent': {
+        const content = [
+          `# ${msg.name}`,
+          '',
+          `**Role:** ${msg.role}`,
+          `**Mission:** ${msg.mission}`,
+          `**Metrics:** Task completion rate`,
+          `**Provider:** ${msg.provider}`,
+          `**Model:** ${msg.model}`,
+        ].join('\n');
+        const id = msg.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+        await this.workspace.writeAgentProfile(id, content);
+        const agents = await this.agentManager.loadAgents();
+        this.postMessage({ type: 'init', board: await this.workspace.readBoard(), agents, orchestratorMessages: this.orchestratorMessages, dmMessages: {}, networkPolicy: await this.workspace.getNetworkPolicy(), orchestrator: await this.workspace.getOrchestratorSettings() });
+        vscode.window.showInformationMessage(`Agent "${msg.name}" created!`);
         break;
       }
     }

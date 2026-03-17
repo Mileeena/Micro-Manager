@@ -36,6 +36,7 @@ interface AgentStore {
   saveApiKey: (provider: AgentProvider, key: string) => void;
   deleteApiKey: (provider: AgentProvider) => void;
   runAgentOnTask: (agentId: string, taskId: string) => void;
+  createAgent: (name: string, role: string, mission: string, provider: AgentProvider, model: string) => void;
   setOrchestratorSettings: (provider: AgentProvider, model: string) => void;
   setOrchestratorSettingsLocal: (settings: OrchestratorSettings) => void;
 }
@@ -84,6 +85,10 @@ export const useAgentStore = create<AgentStore>((set) => ({
 
   runAgentOnTask: (agentId, taskId) => {
     vscode.postMessage({ type: 'runAgentOnTask', agentId, taskId });
+  },
+
+  createAgent: (name, role, mission, provider, model) => {
+    vscode.postMessage({ type: 'createAgent', name, role, mission, provider, model });
   },
 
   setOrchestratorSettings: (provider, model) => {

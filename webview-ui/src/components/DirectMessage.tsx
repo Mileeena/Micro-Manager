@@ -4,6 +4,7 @@ import { useAgentStore, type AgentState, type AgentProvider } from '../store/age
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
 import { PixelAgent } from './PixelAgent';
+import { ModelPicker } from './ModelPicker';
 
 interface DirectMessageProps {
   agent: AgentState;
@@ -81,15 +82,9 @@ export function DirectMessage({ agent }: DirectMessageProps) {
           </div>
           <div className="flex gap-2 items-center">
             <label className="text-xs opacity-60 w-16 flex-shrink-0">Model</label>
-            <input
-              type="text"
-              value={draftModel}
-              onChange={e => setDraftModel(e.target.value)}
-              className="flex-1 text-xs px-2 py-1 rounded border bg-transparent"
-              style={{ borderColor: 'var(--vscode-panel-border)', color: 'var(--vscode-editor-foreground)', backgroundColor: 'var(--vscode-editor-background)' }}
-              placeholder="e.g. anthropic/claude-sonnet-4-5"
-              onKeyDown={e => { if (e.key === 'Enter') handleSaveModel(); if (e.key === 'Escape') setEditingModel(false); }}
-            />
+            <div className="flex-1">
+              <ModelPicker provider={draftProvider} model={draftModel} onModelChange={setDraftModel} />
+            </div>
           </div>
           <div className="flex gap-2">
             <button
@@ -125,7 +120,8 @@ export function DirectMessage({ agent }: DirectMessageProps) {
           className="mx-4 mt-3 px-3 py-2 rounded text-xs"
           style={{ backgroundColor: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
         >
-          ⚠️ No {PROVIDER_LABELS[agent.provider]} API key configured. Go to <strong>Settings</strong>.
+          ⚠️ Нет ключа для <strong>{PROVIDER_LABELS[agent.provider]}</strong>.
+          Добавь ключ в <strong>Settings</strong> или смени провайдер кнопкой <strong>⚙ Model</strong>.
         </div>
       )}
 
