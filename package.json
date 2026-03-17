@@ -4,6 +4,25 @@
   "description": "AI-powered Kanban board with autonomous pixel agents for your VS Code workspace",
   "version": "0.1.0",
   "publisher": "micro-manager",
+  "author": {
+    "name": "Milena",
+    "url": "https://github.com/Mileeena"
+  },
+  "contributors": [
+    {
+      "name": "Claude Sonnet 4.6 (Anthropic)",
+      "url": "https://www.anthropic.com",
+      "email": "noreply@anthropic.com"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mileeena/Micro-Manager.git"
+  },
+  "homepage": "https://github.com/Mileeena/Micro-Manager",
+  "bugs": {
+    "url": "https://github.com/Mileeena/Micro-Manager/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
