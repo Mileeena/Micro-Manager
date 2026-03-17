@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { AgentProvider } from '../types';
 
-const KEY_PREFIX = 'scrumMastermind.apiKey.';
+const KEY_PREFIX = 'microManager.apiKey.';
 
 export class SecretService {
   constructor(private readonly secrets: vscode.SecretStorage) {}

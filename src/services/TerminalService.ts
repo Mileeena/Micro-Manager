@@ -82,7 +82,7 @@ export class TerminalService {
   private async runInTerminal(command: string): Promise<void> {
     if (!this.terminal || this.terminal.exitStatus !== undefined) {
       this.terminal = vscode.window.createTerminal({
-        name: 'Scrum Mastermind',
+        name: 'Micro Manager',
         cwd: this.workspace.workspaceUri,
       });
     }

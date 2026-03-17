@@ -24,7 +24,7 @@ export function OrchestratorChat() {
       <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ borderColor: 'var(--vscode-panel-border)' }}>
         <div className="text-lg">🧠</div>
         <div className="flex-1">
-          <h2 className="text-sm font-semibold">Scrum Master</h2>
+          <h2 className="text-sm font-semibold">Manager</h2>
           <p className="text-xs opacity-50">
             AI Orchestrator · {providerLabel} · <span className="font-mono">{orchestrator.model}</span>
           </p>
@@ -42,7 +42,7 @@ export function OrchestratorChat() {
       <MessageList
         messages={orchestratorMessages}
         streamingContent={streamingContent['orchestrator']}
-        agentName="Scrum Master"
+        agentName="Manager"
       />
 
       {/* Input */}

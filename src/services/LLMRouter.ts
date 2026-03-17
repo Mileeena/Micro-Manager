@@ -74,8 +74,8 @@ async function callOpenRouter({ model, systemPrompt, messages, apiKey, onChunk }
     apiKey,
     baseURL: OPENROUTER_BASE_URL,
     defaultHeaders: {
-      'HTTP-Referer': 'https://github.com/scrum-mastermind',
-      'X-Title': 'Scrum Mastermind',
+      'HTTP-Referer': 'https://github.com/Mileeena/Micro-Manager',
+      'X-Title': 'Micro Manager',
     },
   });
 

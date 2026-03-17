@@ -17,8 +17,8 @@ import {
   Task,
 } from '../types';
 
-export class ScrumMastermindPanel {
-  public static currentPanel: ScrumMastermindPanel | undefined;
+export class MicroManagerPanel {
+  public static currentPanel: MicroManagerPanel | undefined;
   private static readonly viewType = 'microManager';
 
   private readonly panel: vscode.WebviewPanel;
@@ -32,7 +32,7 @@ export class ScrumMastermindPanel {
   private orchestratorMessages: ChatMessage[] = [];
   private dmMessages: Map<string, ChatMessage[]> = new Map();
 
-  // Supervisor: how many times each task has been kicked by the Scrum Master
+  // Supervisor: how many times each task has been kicked by the Manager
   private taskRetryCount: Map<string, number> = new Map();
 
   private constructor(
@@ -47,7 +47,7 @@ export class ScrumMastermindPanel {
     this.agentRunner = new AgentRunner(workspace, fsService, this.terminalService, secrets);
 
     this.panel = vscode.window.createWebviewPanel(
-      ScrumMastermindPanel.viewType,
+      MicroManagerPanel.viewType,
       'Micro Manager',
       vscode.ViewColumn.One,
       {
@@ -80,12 +80,12 @@ export class ScrumMastermindPanel {
   ): void {
     const column = vscode.window.activeTextEditor?.viewColumn ?? vscode.ViewColumn.One;
 
-    if (ScrumMastermindPanel.currentPanel) {
-      ScrumMastermindPanel.currentPanel.panel.reveal(column);
+    if (MicroManagerPanel.currentPanel) {
+      MicroManagerPanel.currentPanel.panel.reveal(column);
       return;
     }
 
-    ScrumMastermindPanel.currentPanel = new ScrumMastermindPanel(
+    MicroManagerPanel.currentPanel = new MicroManagerPanel(
       context.extensionUri,
       workspace,
       secrets,
@@ -102,7 +102,7 @@ export class ScrumMastermindPanel {
       case 'orchestratorMessage': {
         const userMsg = this.orchestrator.buildChatMessage('user', msg.content);
         this.orchestratorMessages.push(userMsg);
-        this.postMessage({ type: 'chatMessage', message: userMsg });
+        // No echo back — webview already added the message optimistically in sendOrchestratorMessage()
 
         try {
           const agents = this.agentManager.getAllAgents();
@@ -379,7 +379,7 @@ export class ScrumMastermindPanel {
     };
   }
 
-  /** Scrum Master supervisor: called when an agent loop ends without completing the task */
+  /** Manager supervisor: called when an agent loop ends without completing the task */
   private async supervisorKick(agentId: string, task: Task, lastResponse: string): Promise<void> {
     const MAX_KICKS = 2;
     const retries = this.taskRetryCount.get(task.id) ?? 0;
@@ -399,7 +399,7 @@ export class ScrumMastermindPanel {
 
     if (retries >= MAX_KICKS) {
       postSystemMsg(
-        `🧠 Scrum Master: I've given "${task.title}" ${MAX_KICKS} extra pushes with no completion. ` +
+        `🤖 Manager: I've given "${task.title}" ${MAX_KICKS} extra pushes with no completion. ` +
         `Consider breaking it into smaller tasks, clarifying the requirements, or assigning a different agent.`
       );
       this.taskRetryCount.delete(task.id);
@@ -412,24 +412,24 @@ export class ScrumMastermindPanel {
     if (!agent) return;
 
     try {
-      postSystemMsg(`🧠 Scrum Master: Task not complete — analyzing and sending follow-up instructions... (attempt ${retries + 1}/${MAX_KICKS})`);
+      postSystemMsg(`🤖 Manager: Task not complete — analyzing and sending follow-up instructions... (attempt ${retries + 1}/${MAX_KICKS})`);
 
       const kickText = await this.orchestrator.generateKickMessage(agent, task, lastResponse);
 
       // Update the system message with the actual kick content
-      postSystemMsg(`🧠 Scrum Master kick ${retries + 1}/${MAX_KICKS}: ${kickText}`);
+      postSystemMsg(`🤖 Manager kick ${retries + 1}/${MAX_KICKS}: ${kickText}`);
 
-      // Re-run the agent with the Scrum Master's guidance injected into the task description
+      // Re-run the agent with the Manager's guidance injected into the task description
       const kickedTask: Task = {
         ...task,
-        description: `${task.description}\n\n**Scrum Master Instructions:** ${kickText}`,
+        description: `${task.description}\n\n**Manager Instructions:** ${kickText}`,
       };
 
       this.agentRunner.runTask(agent, kickedTask, this.buildRunCallbacks()).catch(err => {
         this.postMessage({ type: 'error', message: `Agent error (after kick): ${String(err)}` });
       });
     } catch (err) {
-      postSystemMsg(`🧠 Scrum Master: Failed to generate kick instructions — ${String(err)}`);
+      postSystemMsg(`🤖 Manager: Failed to generate kick instructions — ${String(err)}`);
     }
   }
 
@@ -482,7 +482,7 @@ export class ScrumMastermindPanel {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource}; img-src ${webview.cspSource} data:; font-src ${webview.cspSource};">
   <link rel="stylesheet" href="${styleUri}" />
-  <title>Scrum Mastermind</title>
+  <title>Micro Manager</title>
 </head>
 <body>
   <div id="root"></div>
@@ -492,7 +492,7 @@ export class ScrumMastermindPanel {
   }
 
   public dispose(): void {
-    ScrumMastermindPanel.currentPanel = undefined;
+    MicroManagerPanel.currentPanel = undefined;
     this.terminalService.dispose();
     this.panel.dispose();
     for (const d of this.disposables) d.dispose();

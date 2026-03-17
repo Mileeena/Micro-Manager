@@ -12,7 +12,7 @@ function formatTime(iso: string): string {
 }
 
 function MessageBubble({ msg }: { msg: ChatMessage }) {
-  // System messages from the Scrum Master supervisor — rendered as a distinct banner
+  // System messages from the Manager supervisor — rendered as a distinct banner
   if (msg.role === 'system') {
     return (
       <div className="flex justify-center mb-3 px-2">

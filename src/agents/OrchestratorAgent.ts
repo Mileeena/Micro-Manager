@@ -4,7 +4,7 @@ import { callLLM, injectBible } from '../services/LLMRouter';
 import { SecretService } from '../services/SecretService';
 import { AgentState, BoardState, ChatMessage, ColumnId, Epic, Task } from '../types';
 
-const ORCHESTRATOR_SYSTEM_PROMPT = `You are the Scrum Master AI — an expert project manager and software architect.
+const ORCHESTRATOR_SYSTEM_PROMPT = `You are the Manager AI — an expert project manager and software architect.
 You have full visibility into the project board, all tasks, all epics, and all agent statuses (provided in each message).
 Use this context to answer questions about project status, progress, and agent workload.
 
@@ -136,7 +136,7 @@ export class OrchestratorAgent {
     return { responseText: response, newTasks, newEpic };
   }
 
-  /** Build a concise board snapshot to inject as context for the Scrum Master */
+  /** Build a concise board snapshot to inject as context for the Manager */
   private buildBoardContext(board: BoardState, agents: AgentState[]): string {
     const lines: string[] = ['\n\n---\n## Current Board State\n'];
 
@@ -233,7 +233,7 @@ export class OrchestratorAgent {
       return 'Please complete the task directly. Make all decisions yourself, do not ask for preferences. Implement the solution now and use <MOVE_TASK> to mark it done when finished.';
     }
 
-    const kickPrompt = `You are the Scrum Master. One of your agents stalled on a task instead of completing it.
+    const kickPrompt = `You are the Manager. One of your agents stalled on a task instead of completing it.
 
 Agent: ${agent.name} (${agent.role})
 Task title: "${task.title}"
@@ -255,7 +255,7 @@ Rules:
     await callLLM({
       provider,
       model,
-      systemPrompt: 'You are a decisive, no-nonsense Scrum Master. Be brief, direct, and action-oriented. Never ask questions.',
+      systemPrompt: 'You are a decisive, no-nonsense Manager. Be brief, direct, and action-oriented. Never ask questions.',
       messages: [{ role: 'user', content: kickPrompt }],
       apiKey,
       onChunk: (chunk) => { kickText += chunk; },

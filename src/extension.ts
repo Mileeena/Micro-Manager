@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { ScrumMastermindPanel } from './panels/ScrumMastermindPanel';
+import { MicroManagerPanel } from './panels/MicroManagerPanel';
 import { AgencyWorkspace } from './services/AgencyWorkspace';
 import { SecretService } from './services/SecretService';
 import { FileSystemService } from './services/FileSystemService';
@@ -28,7 +28,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 
   // Register the open command
   const openCommand = vscode.commands.registerCommand('microManager.open', () => {
-    ScrumMastermindPanel.createOrShow(context, agencyWorkspace, secretService, fsService);
+    MicroManagerPanel.createOrShow(context, agencyWorkspace, secretService, fsService);
   });
 
   context.subscriptions.push(openCommand);
@@ -41,12 +41,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       'Open Board'
     );
     if (choice === 'Open Board') {
-      ScrumMastermindPanel.createOrShow(context, agencyWorkspace, secretService, fsService);
+      MicroManagerPanel.createOrShow(context, agencyWorkspace, secretService, fsService);
     }
     await context.globalState.update('micro-manager.welcomed', true);
   }
 }
 
 export function deactivate(): void {
-  ScrumMastermindPanel.currentPanel?.dispose();
+  MicroManagerPanel.currentPanel?.dispose();
 }

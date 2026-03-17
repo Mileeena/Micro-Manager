@@ -59,7 +59,7 @@ export interface AgentState extends AgentProfile {
 
 export interface ChatMessage {
   id: string;
-  /** 'orchestrator' for the Scrum Master, or an agent id for DMs */
+  /** 'orchestrator' for the Manager, or an agent id for DMs */
   agentId: string;
   role: 'user' | 'assistant' | 'system';
   content: string;

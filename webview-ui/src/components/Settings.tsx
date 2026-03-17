@@ -49,9 +49,9 @@ export function Settings() {
 
       {/* ── Orchestrator Model ── */}
       <section className="mb-8">
-        <h3 className="text-sm font-semibold opacity-70 mb-3 uppercase tracking-wider">Scrum Master Model</h3>
+        <h3 className="text-sm font-semibold opacity-70 mb-3 uppercase tracking-wider">Manager Model</h3>
         <p className="text-xs opacity-50 mb-4">
-          Выбери провайдера и модель для AI-оркестратора (Scrum Master).
+          Выбери провайдера и модель для AI-оркестратора (Manager).
         </p>
 
         <div

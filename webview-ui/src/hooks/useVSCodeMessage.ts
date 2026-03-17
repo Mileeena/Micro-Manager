@@ -65,7 +65,7 @@ export function useVSCodeMessages(): void {
           // Уже обновлено оптимистично в store
           break;
         case 'error':
-          console.error('[Scrum Mastermind]', msg.message);
+          console.error('[Micro Manager]', msg.message);
           break;
       }
     }
