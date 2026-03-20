@@ -50,6 +50,12 @@
         "command": "microManager.open",
         "key": "ctrl+shift+s",
         "mac": "cmd+shift+s"
+      },
+      {
+        "command": "microManager.open",
+        "key": "ctrl+m ctrl+i",
+        "mac": "cmd+m cmd+i",
+        "when": "editorTextFocus || !inputFocus"
       }
     ]
   },
@@ -61,7 +67,10 @@
     "watch:ui": "cd webview-ui && npm run dev",
     "watch": "concurrently \"npm run watch:ext\" \"npm run watch:ui\"",
     "package": "npm run build && vsce package",
-    "lint": "eslint src --ext ts"
+    "lint": "eslint src --ext ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.36.0",
@@ -74,10 +83,12 @@
     "@types/vscode": "^1.85.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
+    "@vitest/coverage-v8": "^3.0.9",
     "@vscode/vsce": "^3.0.0",
     "concurrently": "^9.0.0",
     "esbuild": "^0.24.0",
     "eslint": "^8.0.0",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "vitest": "^3.0.9"
   }
 }

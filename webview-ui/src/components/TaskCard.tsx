@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { PixelAgent } from './PixelAgent';
-import type { Task } from '../store/boardStore';
+import type { Task, TaskHistoryEntry } from '../store/boardStore';
 import { useBoardStore } from '../store/boardStore';
 import { useAgentStore } from '../store/agentStore';
 
@@ -18,12 +18,41 @@ function epicColor(epicId: string): string {
   return COLORS[Math.abs(hash) % COLORS.length];
 }
 
+// Dot color per history event type
+function historyDotColor(event: TaskHistoryEntry['event']): string {
+  switch (event) {
+    case 'created':          return '#22c55e'; // green
+    case 'moved':            return '#3b82f6'; // blue
+    case 'assigned':
+    case 'unassigned':       return '#a78bfa'; // purple
+    case 'agent_started':
+    case 'agent_completed':
+    case 'agent_iteration':  return '#8b5cf6'; // violet
+    case 'decomposed':       return '#f59e0b'; // amber
+    case 'blocker_added':    return '#ef4444'; // red
+    case 'blocker_cleared':  return '#22c55e'; // green
+    case 'validation_error': return '#ef4444'; // red
+    case 'validation_fixed': return '#22c55e'; // green
+    default:                 return '#9ca3af'; // gray
+  }
+}
+
+function formatTimestamp(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return iso;
+  }
+}
+
 export function TaskCard({ task }: TaskCardProps) {
-  const [menuMode, setMenuMode] = useState<null | 'assign' | 'run' | 'blockers'>(null);
+  const [menuMode, setMenuMode] = useState<null | 'assign' | 'run' | 'blockers' | 'history'>(null);
   const { agents, runAgentOnTask } = useAgentStore();
-  const { board, assignTask, setTaskBlockers } = useBoardStore();
+  const { board, assignTask, setTaskBlockers, decomposeTask, decomposingTaskIds } = useBoardStore();
   const assignedAgent = agents.find(a => a.id === task.assignedAgentId);
   const epic = board.epics.find(e => e.id === task.epicId);
+  const isDecomposing = decomposingTaskIds.has(task.id);
 
   // All tasks from all columns except this one — for blocker picker
   const allOtherTasks = Object.values(board.columns)
@@ -31,6 +60,7 @@ export function TaskCard({ task }: TaskCardProps) {
     .filter(t => t.id !== task.id);
 
   const isBlocked = (task.blockedBy?.length ?? 0) > 0;
+  const hasHistory = (task.history?.length ?? 0) > 0;
 
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
 
@@ -42,7 +72,7 @@ export function TaskCard({ task }: TaskCardProps) {
 
   function stopProp(e: React.MouseEvent) { e.stopPropagation(); }
 
-  function toggleMenu(mode: 'assign' | 'run' | 'blockers', e: React.MouseEvent) {
+  function toggleMenu(mode: 'assign' | 'run' | 'blockers' | 'history', e: React.MouseEvent) {
     e.stopPropagation();
     setMenuMode(prev => prev === mode ? null : mode);
   }
@@ -53,6 +83,13 @@ export function TaskCard({ task }: TaskCardProps) {
       ? current.filter(id => id !== blockerId)
       : [...current, blockerId];
     setTaskBlockers(task.id, next);
+  }
+
+  function handleDecompose(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!isDecomposing) {
+      decomposeTask(task.id);
+    }
   }
 
   return (
@@ -130,6 +167,31 @@ export function TaskCard({ task }: TaskCardProps) {
             ⛔{isBlocked ? ` ${task.blockedBy!.length}` : ''}
           </button>
 
+          {/* History log button — only shown when there are history entries */}
+          {hasHistory && (
+            <button
+              onClick={(e) => toggleMenu('history', e)}
+              className={`text-xs flex items-center gap-1 ${menuMode === 'history' ? 'opacity-90' : 'opacity-30 hover:opacity-70'}`}
+              title={`Task history (${task.history!.length} events)`}
+              data-testid="history-btn"
+            >
+              🕐
+            </button>
+          )}
+
+          {/* Decompose button */}
+          <button
+            onClick={handleDecompose}
+            disabled={isDecomposing}
+            className="text-xs opacity-30 hover:opacity-70 flex items-center gap-1 disabled:opacity-20 disabled:cursor-not-allowed"
+            title="Break this task into subtasks using AI"
+            data-testid="decompose-btn"
+          >
+            {isDecomposing ? (
+              <span className="animate-spin inline-block" aria-label="Decomposing...">⟳</span>
+            ) : '🔀'}
+          </button>
+
           {assignedAgent && (
             <button
               onClick={(e) => toggleMenu('run', e)}
@@ -140,6 +202,46 @@ export function TaskCard({ task }: TaskCardProps) {
             </button>
           )}
         </div>
+
+        {/* History log panel */}
+        {menuMode === 'history' && hasHistory && (
+          <div
+            className="mt-2 rounded border text-xs overflow-hidden"
+            style={{ backgroundColor: 'var(--vscode-editor-background)', borderColor: 'var(--vscode-focusBorder)' }}
+            onClick={stopProp}
+            data-testid="history-panel"
+          >
+            <div
+              className="px-2 py-1.5 font-semibold opacity-60 border-b flex items-center gap-1"
+              style={{ borderColor: 'var(--vscode-panel-border)' }}
+            >
+              🕐 Task History
+            </div>
+            <div className="max-h-40 overflow-y-auto">
+              {(task.history ?? []).map((entry, i) => (
+                <div
+                  key={i}
+                  className="flex items-start gap-2 px-2 py-1 border-b last:border-b-0"
+                  style={{ borderColor: 'var(--vscode-panel-border)' }}
+                >
+                  <span
+                    className="flex-shrink-0 mt-0.5 rounded-full"
+                    style={{
+                      width: 6,
+                      height: 6,
+                      backgroundColor: historyDotColor(entry.event),
+                      display: 'inline-block',
+                    }}
+                  />
+                  <span className="opacity-40 flex-shrink-0 tabular-nums">
+                    {formatTimestamp(entry.timestamp)}
+                  </span>
+                  <span className="flex-1 opacity-80">{entry.detail}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Assign menu */}
         {menuMode === 'assign' && (

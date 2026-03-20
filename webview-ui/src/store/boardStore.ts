@@ -3,6 +3,18 @@ import { vscode } from '../vscode';
 
 export type ColumnId = 'backlog' | 'todo' | 'in-progress' | 'done';
 
+export type TaskEvent =
+  | 'created' | 'moved' | 'assigned' | 'unassigned'
+  | 'agent_started' | 'agent_completed' | 'agent_iteration'
+  | 'decomposed' | 'blocker_added' | 'blocker_cleared'
+  | 'validation_error' | 'validation_fixed';
+
+export interface TaskHistoryEntry {
+  timestamp: string;
+  event: TaskEvent;
+  detail: string;
+}
+
 export interface Epic {
   id: string;
   title: string;
@@ -21,6 +33,7 @@ export interface Task {
   blockedBy?: string[];
   createdAt: string;
   tags: string[];
+  history?: TaskHistoryEntry[];
 }
 
 export interface BoardState {
@@ -31,11 +44,14 @@ export interface BoardState {
 
 interface BoardStore {
   board: BoardState;
+  decomposingTaskIds: Set<string>;
   setBoard: (board: BoardState) => void;
   moveTask: (taskId: string, fromColumn: ColumnId, toColumn: ColumnId) => void;
   assignTask: (taskId: string, agentId: string) => void;
   createTask: (title: string, description: string, columnId?: ColumnId) => void;
   setTaskBlockers: (taskId: string, blockedBy: string[]) => void;
+  decomposeTask: (taskId: string) => void;
+  setDecomposing: (taskId: string, isDecomposing: boolean) => void;
 }
 
 const emptyBoard: BoardState = {
@@ -46,6 +62,7 @@ const emptyBoard: BoardState = {
 
 export const useBoardStore = create<BoardStore>((set, get) => ({
   board: emptyBoard,
+  decomposingTaskIds: new Set<string>(),
 
   setBoard: (board) => set({ board }),
 
@@ -99,6 +116,22 @@ export const useBoardStore = create<BoardStore>((set, get) => ({
     }
     set({ board: { ...board, columns: newColumns } });
     vscode.postMessage({ type: 'setTaskBlockers', taskId, blockedBy });
+  },
+
+  decomposeTask: (taskId) => {
+    set(state => ({
+      decomposingTaskIds: new Set([...state.decomposingTaskIds, taskId]),
+    }));
+    vscode.postMessage({ type: 'decomposeTask', taskId });
+  },
+
+  setDecomposing: (taskId, isDecomposing) => {
+    set(state => {
+      const next = new Set(state.decomposingTaskIds);
+      if (isDecomposing) next.add(taskId);
+      else next.delete(taskId);
+      return { decomposingTaskIds: next };
+    });
   },
 }));
 

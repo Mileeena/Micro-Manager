@@ -4,6 +4,7 @@ import { FileSystemService } from '../services/FileSystemService';
 import { callLLM, injectBible } from '../services/LLMRouter';
 import { SecretService } from '../services/SecretService';
 import { TerminalService } from '../services/TerminalService';
+import { codeValidator } from '../services/CodeValidator';
 import { AgentAction, AgentState, ChatMessage, ColumnId, Task } from '../types';
 
 /** Tags the agent uses to trigger actions in its responses */
@@ -42,6 +43,8 @@ export type AgentRunnerCallbacks = {
   onBoardUpdate: () => void;
   /** Fired when the agentic loop ends without the task being moved to 'done' */
   onTaskIncomplete?: (agentId: string, task: Task, lastResponse: string) => void;
+  /** Fired to record a task history entry */
+  onHistoryEntry?: (taskId: string, entry: import('../types').TaskHistoryEntry) => void;
 };
 
 export class AgentRunner {
@@ -57,6 +60,11 @@ export class AgentRunner {
 
     try {
       onStatusChange(agent.id, 'thinking', task.id);
+      callbacks.onHistoryEntry?.(task.id, {
+        timestamp: new Date().toISOString(),
+        event: 'agent_started',
+        detail: `Agent ${agent.name} started working`,
+      });
 
       const bible = await this.workspace.readBible();
       const systemPrompt = injectBible(buildAgentSystemPrompt(agent, task), bible);
@@ -114,13 +122,18 @@ export class AgentRunner {
 
         for (const action of actions) {
           onStatusChange(agent.id, 'coding', task.id);
-          const result = await this.executeAction(action, agent);
+          const result = await this.executeAction(action, agent, callbacks, task);
           toolResults.push(result);
 
           // Check if task was moved to done
           if (action.type === 'MOVE_TASK' && action.toColumn === 'done') {
             taskDone = true;
             taskCompleted = true;
+            callbacks.onHistoryEntry?.(task.id, {
+              timestamp: new Date().toISOString(),
+              event: 'agent_completed',
+              detail: `Agent ${agent.name} completed task`,
+            });
             onBoardUpdate();
           }
           if (action.type === 'CREATE_TASK' || action.type === 'MOVE_TASK') {
@@ -184,7 +197,7 @@ export class AgentRunner {
     return actions;
   }
 
-  private async executeAction(action: AgentAction, agent: AgentState): Promise<string> {
+  private async executeAction(action: AgentAction, agent: AgentState, callbacks: AgentRunnerCallbacks, task: Task): Promise<string> {
     const agentId = agent.id;
     switch (action.type) {
       case 'READ_FILE': {
@@ -198,9 +211,25 @@ export class AgentRunner {
       }
       case 'WRITE_FILE': {
         try {
-          await this.fsService.writeFile(action.path, action.content);
-          await this.workspace.writeLog({ agentId, action: 'WRITE_FILE', details: { path: action.path } });
-          return `<success>Wrote ${action.path}</success>`;
+          const { clean, errors, wasStripped } = await codeValidator.validateAndClean(action.content, action.path);
+          await this.fsService.writeFile(action.path, clean);
+          await this.workspace.writeLog({ agentId, action: 'WRITE_FILE', details: { path: action.path, wasStripped } });
+          if (errors.length > 0) {
+            callbacks.onHistoryEntry?.(task.id, {
+              timestamp: new Date().toISOString(),
+              event: 'validation_error',
+              detail: `Syntax error in ${action.path}: ${errors[0]}`,
+            });
+            return `<validation_error path="${action.path}">Syntax errors found:\n${errors.join('\n')}\nPlease fix these errors and rewrite the file with <WRITE_FILE>.</validation_error>`;
+          }
+          if (wasStripped) {
+            callbacks.onHistoryEntry?.(task.id, {
+              timestamp: new Date().toISOString(),
+              event: 'validation_fixed',
+              detail: `Stripped markdown fences from ${action.path}`,
+            });
+          }
+          return `<success>Wrote ${action.path}${wasStripped ? ' (markdown fences stripped)' : ''}</success>`;
         } catch (e) {
           return `<error>Could not write ${action.path}: ${String(e)}</error>`;
         }

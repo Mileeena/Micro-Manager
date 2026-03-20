@@ -21,10 +21,12 @@ type ExtensionMessage =
   | { type: 'streamEnd'; agentId: string }
   | { type: 'error'; message: string }
   | { type: 'apiKeyStatus'; provider: any; hasKey: boolean }
-  | { type: 'agentSettingsUpdated'; agentId: string; provider: any; model: string };
+  | { type: 'agentSettingsUpdated'; agentId: string; provider: any; model: string }
+  | { type: 'decomposing'; taskId: string }
+  | { type: 'taskDecomposed'; originalTaskId: string; subtaskIds: string[] };
 
 export function useVSCodeMessages(): void {
-  const { setBoard } = useBoardStore();
+  const { setBoard, setDecomposing } = useBoardStore();
   const {
     setAgents, updateStatus, setApiKeyStatus, setNetworkPolicy,
     setOrchestratorSettingsLocal,
@@ -62,7 +64,15 @@ export function useVSCodeMessages(): void {
           setApiKeyStatus(msg.provider, msg.hasKey);
           break;
         case 'agentSettingsUpdated':
-          // Уже обновлено оптимистично в store
+          // Already updated optimistically in store
+          break;
+        case 'decomposing':
+          // Extension started decomposing — show spinner on card
+          setDecomposing(msg.taskId, true);
+          break;
+        case 'taskDecomposed':
+          // Decomposition finished — clear spinner (board already updated via boardUpdate)
+          setDecomposing(msg.originalTaskId, false);
           break;
         case 'error':
           console.error('[Micro Manager]', msg.message);

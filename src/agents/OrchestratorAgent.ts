@@ -264,7 +264,88 @@ Rules:
     return kickText.trim() || 'Proceed with your best judgment. Implement the solution directly without asking for input, then mark the task done with <MOVE_TASK>.';
   }
 
-  buildChatMessage(role: 'user' | 'assistant', content: string): ChatMessage {
+  /**
+   * Decompose a task into smaller subtasks using AI.
+   * Returns the created subtasks (saved to board).
+   */
+  async decomposeTask(task: Task, agents: AgentState[]): Promise<Task[]> {
+    const { provider, model } = await this.workspace.getOrchestratorSettings();
+    const apiKey = await this.secrets.getApiKey(provider);
+    if (!apiKey) {
+      throw new Error(`No ${provider} API key configured for decomposition.`);
+    }
+
+    const bible = await this.workspace.readBible();
+    const systemPrompt = injectBible(
+      `You are the Manager AI. Your job is to break down a complex task into 3-7 smaller, actionable subtasks.
+Respond ONLY with a JSON array of subtasks. No other text. Example:
+[
+  { "title": "Set up project structure", "description": "Create folders and config files" },
+  { "title": "Implement core logic", "description": "Write the main algorithm" }
+]
+Each subtask should be concrete, actionable, and completable by a single developer in one session.`,
+      bible
+    );
+
+    const prompt = `Decompose this task into smaller subtasks:
+
+Title: ${task.title}
+Description: ${task.description}
+
+Current agents available: ${agents.map(a => `${a.name} (${a.role})`).join(', ') || 'none'}
+
+Return ONLY a JSON array of subtasks.`;
+
+    let responseText = '';
+    await callLLM({
+      provider,
+      model,
+      systemPrompt,
+      messages: [{ role: 'user', content: prompt }],
+      apiKey,
+      onChunk: (chunk) => { responseText += chunk; },
+    });
+
+    // Parse JSON array from response
+    let subtaskDefs: Array<{ title: string; description: string }> = [];
+    try {
+      // Try direct parse first
+      const cleaned = responseText.trim();
+      const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        subtaskDefs = JSON.parse(jsonMatch[0]);
+      }
+    } catch {
+      // Fallback: create 2 generic subtasks
+      subtaskDefs = [
+        { title: `${task.title} — Part 1`, description: `First half of: ${task.description}` },
+        { title: `${task.title} — Part 2`, description: `Second half of: ${task.description}` },
+      ];
+    }
+
+    // Save subtasks to board
+    const board = await this.workspace.readBoard();
+    const now = new Date().toISOString();
+    const newTasks: Task[] = subtaskDefs.slice(0, 7).map(def => ({
+      id: uuidv4(),
+      title: def.title || 'Subtask',
+      description: def.description || '',
+      columnId: 'backlog' as ColumnId,
+      epicId: task.epicId, // inherit epic
+      createdAt: now,
+      tags: [],
+      history: [{ timestamp: now, event: 'created' as const, detail: `Created by decomposing "${task.title}"` }],
+    }));
+
+    for (const t of newTasks) {
+      board.columns.backlog.push(t);
+    }
+    await this.workspace.writeBoard(board);
+
+    return newTasks;
+  }
+
+  buildChatMessage(role: 'user' | 'assistant' | 'system', content: string): ChatMessage {
     return {
       id: uuidv4(),
       agentId: 'orchestrator',

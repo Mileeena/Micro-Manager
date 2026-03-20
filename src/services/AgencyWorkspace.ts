@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BoardState, Epic, AgentProfile, WhitelistStore, OrchestratorSettings } from '../types';
+import { BoardState, Epic, AgentProfile, WhitelistStore, OrchestratorSettings, TaskHistoryEntry } from '../types';
 import { FileSystemService } from './FileSystemService';
 
 const AGENCY_DIR = '.agency';
@@ -309,6 +309,23 @@ export class AgencyWorkspace {
       await this.fs.writeFile(logFile, existing + line);
     } catch {
       // Log failures are non-fatal
+    }
+  }
+
+  async addTaskHistory(taskId: string, entry: TaskHistoryEntry): Promise<void> {
+    try {
+      const board = await this.readBoard();
+      for (const col of Object.values(board.columns)) {
+        const task = col.find(t => t.id === taskId);
+        if (task) {
+          if (!task.history) task.history = [];
+          task.history.push(entry);
+          await this.writeBoard(board);
+          return;
+        }
+      }
+    } catch {
+      // History is non-critical — don't throw
     }
   }
 

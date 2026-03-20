@@ -11,6 +11,28 @@ export interface Epic {
   createdAt: string;
 }
 
+// ─── Task History ─────────────────────────────────────────────────────────────
+
+export type TaskEvent =
+  | 'created'
+  | 'moved'
+  | 'assigned'
+  | 'unassigned'
+  | 'agent_started'
+  | 'agent_completed'
+  | 'agent_iteration'
+  | 'decomposed'
+  | 'blocker_added'
+  | 'blocker_cleared'
+  | 'validation_error'
+  | 'validation_fixed';
+
+export interface TaskHistoryEntry {
+  timestamp: string;
+  event: TaskEvent;
+  detail: string;
+}
+
 export interface Task {
   id: string;
   title: string;
@@ -23,6 +45,7 @@ export interface Task {
   blockedBy?: string[];
   createdAt: string;
   tags: string[];
+  history?: TaskHistoryEntry[];
 }
 
 export interface BoardState {
@@ -103,7 +126,9 @@ export type ExtensionMessage =
   | { type: 'streamEnd'; agentId: string }
   | { type: 'error'; message: string }
   | { type: 'apiKeyStatus'; provider: AgentProvider; hasKey: boolean }
-  | { type: 'agentSettingsUpdated'; agentId: string; provider: AgentProvider; model: string };
+  | { type: 'agentSettingsUpdated'; agentId: string; provider: AgentProvider; model: string }
+  | { type: 'taskDecomposed'; originalTaskId: string; subtaskIds: string[] }
+  | { type: 'decomposing'; taskId: string };
 
 export type WebviewMessage =
   | { type: 'ready' }
@@ -121,7 +146,8 @@ export type WebviewMessage =
   | { type: 'setOrchestratorSettings'; provider: AgentProvider; model: string }
   | { type: 'updateAgentSettings'; agentId: string; provider: AgentProvider; model: string }
   | { type: 'updateAgentAllowedCommands'; agentId: string; allowedCommands: string[] }
-  | { type: 'createAgent'; name: string; role: string; mission: string; provider: AgentProvider; model: string };
+  | { type: 'createAgent'; name: string; role: string; mission: string; provider: AgentProvider; model: string }
+  | { type: 'decomposeTask'; taskId: string };
 
 // ─── LLM ─────────────────────────────────────────────────────────────────────
 
